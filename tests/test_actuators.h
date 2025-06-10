@@ -22,7 +22,7 @@ void testPumps(int pump_1, int pump_2, int pump_3) {
 
     for (int i = 0; i < 3; i++) {
 
-        int pump = pumps[i];
+        int pump = pumps[2];
 
         for (int i = 0; i <= 250; i+=50) {
             analogWrite(pump, i);
