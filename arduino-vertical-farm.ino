@@ -1,72 +1,87 @@
 #include "tests/test_actuators.h"
-#include <LiquidCrystal_I2C.h>
-#include <Wire.h>
+#include "clients/soil.h"
+#include "clients/lcd.h"
 
-// display
-int vin_display = 22;
-LiquidCrystal_I2C lcd(0x27, 20, 4);
+// soil
 
-// sensors
 int sens_1 = A0;
 int sens_2 = A1;
 int sens_3 = A2;
-int v_in_1 = 30;
-int v_in_2 = 31;
-int v_in_3 = 32;
-int out_cps[3];
 
-// sens boundaries
-int soil_dry = 602; // quite dry
-int soil_wet = 400; // very wet
+int v_in_pin_1 = 30;
+int v_in_pin_2 = 31;
+int v_in_pin_3 = 32;
 
-// actuators
-int lights = 6;
 int pump_3 = 4; // 1.2 L/Min
-int pump_2 = 3; // 1.2 L/Min
-int pump_1 = 2; // 1.2 L/Min
+int pump_2 = 3; 
+int pump_1 = 2;
+
+unsigned long interval = 30*60*1000; // 30 mins
+int pump_time = 5000; // 5 seconds
+int pump_power = 255;
+
+MoistureResult moisture_result;
+
+int soil_dry = 550; // quite dry
+
+
+// light
+
+int light_target = 0; // TODO change
+int lights = 6;
+
+LcdClient lcd;
+
+PumpClient pc1(
+  pump_1, 
+  sens_1, 
+  v_in_pin_1,
+  interval,
+  pump_time,
+  pump_power,
+  soil_dry
+);
+
+PumpClient pc2(
+  pump_2, 
+  sens_2, 
+  v_in_pin_2,
+  interval,
+  pump_time,
+  pump_power,
+  soil_dry
+);
+
+PumpClient pc3(
+  pump_3, 
+  sens_3, 
+  v_in_pin_3,
+  interval,
+  pump_time,
+  pump_power,
+  soil_dry
+);
+
+
+PumpClient pcArray[3] = {pc1, pc2, pc3};
 
 void setup() {
-  pinMode(vin_display, OUTPUT);
-  digitalWrite(vin_display, HIGH);
-  Serial.begin(9600);
-  Wire.begin();
-  
-  // display
-  lcd.init();
-  lcd.backlight();
-  lcd.setCursor(0, 0);
-  lcd.print("hello world");
-
-  // sensors
-  pinMode(sens_1, INPUT);
-  pinMode(sens_2, INPUT);
-  pinMode(sens_3, INPUT);
-  pinMode(v_in_1, OUTPUT);
-  pinMode(v_in_2, OUTPUT);
-  pinMode(v_in_3, OUTPUT);
 
   // actuators
   pinMode(lights, OUTPUT);
-  pinMode(pump_1, OUTPUT);
-  pinMode(pump_2, OUTPUT);
-  pinMode(pump_3, OUTPUT);
 }
 
 void loop() {
-  lcd.setCursor(0, 1);
-  lcd.print("Counter:");
-  lcd.print(millis() / 1000);
 
-  // testOutputs(lights, pump_1, pump_2, pump_3);
-  
-  // readMoistureCapacitors(
-  //   sens_1,
-  //   sens_2,
-  //   sens_3,
-  //   v_in_1,
-  //   v_in_2,
-  //   v_in_3,
-  //   out_cps
-  // );
+  for (int i = 0; i < 3; i++) {
+    moisture_result = pcArray[i].moistureFeedbackLoop();
+    lcd.bay(i+1);
+    lcd.soil(moisture_result.cp);
+    lcd.last_water_time(moisture_result.time_since_last);
+  }
+
+  analogWrite(lights, 100);
 
 }
+
+// testOutputs(lights, pump_1, pump_2, pump_3);
