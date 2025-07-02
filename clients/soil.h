@@ -13,7 +13,7 @@ class PumpClient {
         int slider_pin;
 
         unsigned long interval_ms;
-        unsigned long last_time;
+        unsigned long last_time = 0;
 
         int pump_time_ms;
         int power;
@@ -55,16 +55,18 @@ class PumpClient {
         return out_voltage;
     }
 
-    unsigned long activatePump(int out_cp, int max_voltage)   {
+    bool activatePump(int out_cp, int max_voltage)   {
         // 255 / 255 power: // 1.2 L/Min
         
-        if ((millis() - last_time) >= interval_ms || out_cp > max_voltage) {
+        if (((millis() - last_time) >= interval_ms || out_cp > max_voltage) && false) {
             analogWrite(pump_pin, power);
             delay(pump_time_ms);
             digitalWrite(pump_pin, LOW);
 
             last_time = millis();
+            return true;
         }
+        return false;
     }
 
     MoistureResult moistureFeedbackLoop() {

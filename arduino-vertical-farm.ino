@@ -6,20 +6,21 @@
 
 // soil
 
-int sens_1 = A0;
-int sens_2 = A1;
-int sens_3 = A2;
-int slider_1 = A3;
-int slider_2 = A4;
-int slider_3 = A5;
+int moist_sens_1 = A0;
+int moist_sens_2 = A1;
+int moist_sens_3 = A2;
+int slider_1 = A4;
+int slider_2 = A5;
+int slider_3 = A6;
 
-int v_in_pin_1 = 30;
-int v_in_pin_2 = 31;
-int v_in_pin_3 = 32;
+int moist_v_in_pin_1 = 8;
+int moist_v_in_pin_2 = 9;
+int moist_v_in_pin_3 = 10;
 
+int pump_1 = 6;
+int pump_2 = 5;
 int pump_3 = 4; // 1.2 L/Min
-int pump_2 = 3; 
-int pump_1 = 2;
+
 
 unsigned long interval = 30*60*1000; // 30 mins
 int pump_time = 5000; // 5 seconds
@@ -32,7 +33,7 @@ int soil_dry = 550; // quite dry
 
 // light
 
-int lights = 6;
+int lights = 2;
 
 LcdClient lcd;
 
@@ -40,8 +41,8 @@ LightClient light;
 
 PumpClient pc1(
   pump_1, 
-  sens_1, 
-  v_in_pin_1,
+  moist_sens_1, 
+  moist_v_in_pin_1,
   interval,
   pump_time,
   pump_power,
@@ -50,8 +51,8 @@ PumpClient pc1(
 
 PumpClient pc2(
   pump_2, 
-  sens_2, 
-  v_in_pin_2,
+  moist_sens_2, 
+  moist_v_in_pin_2,
   interval,
   pump_time,
   pump_power,
@@ -60,8 +61,8 @@ PumpClient pc2(
 
 PumpClient pc3(
   pump_3, 
-  sens_3, 
-  v_in_pin_3,
+  moist_sens_3, 
+  moist_v_in_pin_3,
   interval,
   pump_time,
   pump_power,
@@ -72,7 +73,9 @@ PumpClient pc3(
 PumpClient pcArray[3] = {pc1, pc2, pc3};
 
 void setup() {
+  digitalWrite(22, HIGH); // light sens pin
   Wire.begin();
+  Wire.setClock(100000);
 
   light.init();
   lcd.init();
@@ -85,10 +88,8 @@ void loop() {
 
   for (int i = 0; i < 3; i++) {
     moisture_results[i] = pcArray[i].moistureFeedbackLoop();
-    //lcd.last_water_time(moisture_result.time_since_last);
+    // lcd.last_water_time(moisture_results[i].time_since_last);
   }
-
-  light_result = light.pidLoop();
 
   lcd.soil(
     moisture_results[0].out_voltage,
@@ -99,7 +100,10 @@ void loop() {
     moisture_results[2].max_voltage
   );
 
-  lcd.light(light_result.target_ppfd, light_result.actual_ppfd);
-}
+  light_result = light.pidLoop();
 
-// testOutputs(lights, pump_1, pump_2, pump_3);
+  lcd.light(light_result.target_ppfd, light_result.actual_ppfd);
+
+  // testOutputs(lights, pump_1, pump_2, pump_3);
+
+}
