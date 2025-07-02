@@ -12,99 +12,107 @@ struct LightResult {
 };
 
 class LightClient {
-    private:
-        Adafruit_AS7341 sensor;
-        PID pid;
+private:
+    Adafruit_AS7341 sensor;
+    PID* pid;  // pointer now
 
-        int light_pin = 2;
-        int sens_v_pin = 22;
-        int slider_v_pin = 26;
-        int slider_pin = A3;
-        
-        double sensor_constant = 1;
-        double slider_constant = 1;
+    const int light_pin = 2;
+    const int sens_v_pin = 22;
+    const int slider_v_pin = 26;
+    const int slider_pin = A3;
 
-        double target_ppfd;
-        double actual_ppfd;
-        double output_pwm;
+    double sensor_constant = 1.0;
 
-        double Kp = 2.0, Ki = 5.0, Kd = 1.0;
-    
-    public:
-        LightClient() : pid(&actual_ppfd, &output_pwm, &target_ppfd, Kp, Ki, Kd, DIRECT) {}
+    double target_ppfd = 0;
+    double actual_ppfd = 0;
+    double output_pwm = 0;
+
+    // PID tuning parameters
+    double Kp = 2.0, Ki = 5.0, Kd = 1.0;
+
+public:
+    LightClient() : pid(nullptr) {}
 
     void init() {
-
-        target_ppfd = 0;
-        actual_ppfd = 0;
-        output_pwm = 0;
-
+        Serial.begin(9600);
+        Wire.begin();
         pinMode(sens_v_pin, OUTPUT);
         digitalWrite(sens_v_pin, HIGH);
-        Serial.begin(9600);
+
+        pinMode(slider_pin, INPUT);
+        pinMode(slider_v_pin, OUTPUT);
+        digitalWrite(slider_v_pin, HIGH);
+
+        pinMode(light_pin, OUTPUT);
+
         delay(100);
-        Serial.println("starting");
+        Serial.println("Starting sensor");
+
         if (!sensor.begin()) {
             Serial.println("AS7341 not found!");
             while (1) delay(10);
         }
+
         Wire.setClock(100000);
         sensor.setATIME(100);
         sensor.setASTEP(999);
         sensor.setGain(AS7341_GAIN_256X);
 
-        pid.SetOutputLimits(0, 255);
-        pid.SetMode(AUTOMATIC);
+        // Construct PID here AFTER Kp, Ki, Kd have been set
+        pid = new PID(&actual_ppfd, &output_pwm, &target_ppfd, Kp, Ki, Kd, DIRECT);
+        pid->SetOutputLimits(0, 255);
+        pid->SetMode(AUTOMATIC);
 
-        pinMode(slider_pin, INPUT);
-        pinMode(light_pin, OUTPUT);
-
-        pinMode(slider_v_pin, OUTPUT);
-        digitalWrite(slider_v_pin, HIGH);
+        target_ppfd = 0;
+        actual_ppfd = 0;
+        output_pwm = 0;
     }
-    
+
     SensResult readSensors() {
         SensResult result;
         result.F2 = sensor.getChannel(AS7341_CHANNEL_445nm_F2);
         delay(100);
         result.F8 = sensor.getChannel(AS7341_CHANNEL_680nm_F8);
         delay(100);
-
         return result;
     }
 
     double getPPFD() {
-        SensResult reading;
-        double cumulative_reading;
-        double PPFD;
-        reading = readSensors();
-        
-        cumulative_reading = (reading.F2 + reading.F8) * 0.8; //not bang on sens wavelengths
-        PPFD = cumulative_reading * sensor_constant;
+        SensResult reading = readSensors();
+
+        double cumulative_reading = (reading.F2 + reading.F8) * 0.8; // approximate
+        double PPFD = cumulative_reading * sensor_constant;
         return PPFD;
     }
 
     double getSlider() {
-        int target_ppfd;
         digitalWrite(slider_v_pin, HIGH);
-        target_ppfd = analogRead(slider_pin);
+        int raw_value = analogRead(slider_pin);
         digitalWrite(slider_v_pin, LOW);
-        return target_ppfd;
+        return raw_value;
     }
-    
+
     LightResult pidLoop() {
-        target_ppfd = getSlider() / 4.0;
+        target_ppfd = getSlider() / 4.0; // scale 0-1023 to ~0-255 PWM range
         actual_ppfd = getPPFD();
 
-        pid.Compute();
+        Serial.print("Target PPFD: ");
+        Serial.print(target_ppfd);
+        Serial.print(" | Actual PPFD: ");
+        Serial.println(actual_ppfd);
 
-        Serial.print("output pwm ");
+        bool pid_result = pid->Compute();
+
+        if (!pid_result) {
+            Serial.println("PID compute returned false");
+        }
+
+        Serial.print("Output PWM: ");
         Serial.println(output_pwm);
-        // Serial.print("Chan 8 ");
-        // Serial.println(result.F8);
-    
-        delay(10);  // Prevent hammering I²C
+
         analogWrite(light_pin, (int)output_pwm);
+
+        delay(10);  // short delay to avoid I2C hammering
 
         return {(int)target_ppfd, (int)actual_ppfd};
     }

@@ -35,7 +35,7 @@ int soil_dry = 550; // quite dry
 
 int lights = 2;
 
-LcdClient lcd;
+// LcdClient lcd;
 
 LightClient light;
 
@@ -78,7 +78,7 @@ void setup() {
   Wire.setClock(100000);
 
   light.init();
-  lcd.init();
+  // lcd.init();
 
 }
 
@@ -91,18 +91,18 @@ void loop() {
     // lcd.last_water_time(moisture_results[i].time_since_last);
   }
 
-  lcd.soil(
-    moisture_results[0].out_voltage,
-    moisture_results[1].out_voltage,
-    moisture_results[2].out_voltage,
-    moisture_results[0].max_voltage,
-    moisture_results[1].max_voltage,
-    moisture_results[2].max_voltage
-  );
+  // lcd.soil(
+  //   moisture_results[0].out_voltage,
+  //   moisture_results[1].out_voltage,
+  //   moisture_results[2].out_voltage,
+  //   moisture_results[0].max_voltage,
+  //   moisture_results[1].max_voltage,
+  //   moisture_results[2].max_voltage
+  // );
 
   light_result = light.pidLoop();
 
-  lcd.light(light_result.target_ppfd, light_result.actual_ppfd);
+  // lcd.light(light_result.target_ppfd, light_result.actual_ppfd);
 
   // testOutputs(lights, pump_1, pump_2, pump_3);
 
