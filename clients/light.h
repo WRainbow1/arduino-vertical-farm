@@ -2,8 +2,8 @@
 #include <PID_v1.h>
 
 struct SensResult {
-    int F2;
-    int F8;
+    float F2;
+    float F8;
 };
 
 struct LightResult {
@@ -18,7 +18,7 @@ private:
 
     const int light_pin = 2;
     const int sens_v_pin = 22;
-    const int slider_v_pin = 26;
+    const int slider_v_pin = 23;
     const int slider_pin = A3;
 
     double sensor_constant = 1.0;
@@ -28,22 +28,22 @@ private:
     double output_pwm = 0;
 
     // PID tuning parameters
-    double Kp = 2.0, Ki = 5.0, Kd = 1.0;
+    double Kp = 0.3, Ki = 0.1, Kd = 0.001;
 
 public:
     LightClient() : pid(nullptr) {}
 
     void init() {
-        Serial.begin(9600);
         Wire.begin();
-        pinMode(sens_v_pin, OUTPUT);
-        digitalWrite(sens_v_pin, HIGH);
+        Serial.begin(9600);
 
+        pinMode(sens_v_pin, OUTPUT);
         pinMode(slider_pin, INPUT);
         pinMode(slider_v_pin, OUTPUT);
-        digitalWrite(slider_v_pin, HIGH);
-
         pinMode(light_pin, OUTPUT);
+
+        digitalWrite(sens_v_pin, HIGH);
+        digitalWrite(slider_v_pin, HIGH);
 
         delay(100);
         Serial.println("Starting sensor");
@@ -53,8 +53,7 @@ public:
             while (1) delay(10);
         }
 
-        Wire.setClock(100000);
-        sensor.setATIME(100);
+        sensor.setATIME(1);
         sensor.setASTEP(999);
         sensor.setGain(AS7341_GAIN_256X);
 
@@ -70,36 +69,44 @@ public:
 
     SensResult readSensors() {
         SensResult result;
-        result.F2 = sensor.getChannel(AS7341_CHANNEL_445nm_F2);
-        delay(100);
-        result.F8 = sensor.getChannel(AS7341_CHANNEL_680nm_F8);
-        delay(100);
+
+        uint16_t readings[12];
+        float counts[12];
+
+        if (!sensor.readAllChannels(readings)){
+            Serial.println("Error reading all channels!");
+            return;
+        }
+
+        for(uint8_t i = 0; i < 12; i++) {
+            if(i == 4 || i == 5) continue;
+            // we skip the first set of duplicate clear/NIR readings
+            // (indices 4 and 5)
+            counts[i] = sensor.toBasicCounts(readings[i]);
+        }
+
+        result.F2 = counts[1];
+        result.F8 = counts[9];
         return result;
     }
 
     double getPPFD() {
         SensResult reading = readSensors();
 
-        double cumulative_reading = (reading.F2 + reading.F8) * 0.8; // approximate
+        double cumulative_reading = (reading.F2 + reading.F8) * 200; // approximate
         double PPFD = cumulative_reading * sensor_constant;
         return PPFD;
     }
 
     double getSlider() {
-        digitalWrite(slider_v_pin, HIGH);
-        int raw_value = analogRead(slider_pin);
-        digitalWrite(slider_v_pin, LOW);
+
+        int raw_value = analogRead(slider_pin) / 4.0;
         return raw_value;
     }
 
     LightResult pidLoop() {
-        target_ppfd = getSlider() / 4.0; // scale 0-1023 to ~0-255 PWM range
+        target_ppfd = getSlider(); // scale 0-1023 to ~0-255 PWM range
         actual_ppfd = getPPFD();
-
-        Serial.print("Target PPFD: ");
-        Serial.print(target_ppfd);
-        Serial.print(" | Actual PPFD: ");
-        Serial.println(actual_ppfd);
 
         bool pid_result = pid->Compute();
 
@@ -107,12 +114,8 @@ public:
             Serial.println("PID compute returned false");
         }
 
-        Serial.print("Output PWM: ");
-        Serial.println(output_pwm);
-
         analogWrite(light_pin, (int)output_pwm);
 
-        delay(10);  // short delay to avoid I2C hammering
 
         return {(int)target_ppfd, (int)actual_ppfd};
     }

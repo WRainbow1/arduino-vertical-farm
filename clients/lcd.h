@@ -18,10 +18,10 @@ class LcdClient {
 
         void light(int target, int actual) {
             lcd.setCursor(0, 0);
-            lcd.print("ppfd M:");
+            lcd.print("L  M:");
             lcd.print(actual);
             lcd.setCursor(10, 0);
-            lcd.print("ppfd T:");
+            lcd.print("T:");
             lcd.print(target);
         }
 

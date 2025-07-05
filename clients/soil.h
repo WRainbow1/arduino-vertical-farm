@@ -10,6 +10,7 @@ class PumpClient {
         int pump_pin;
         int sens_pin;
         int sens_vin_pin;
+        int slider_v_in;
         int slider_pin;
 
         unsigned long interval_ms;
@@ -25,33 +26,35 @@ class PumpClient {
             unsigned long interval,
             int pump_time,
             int pump_power,
+            int slider_v_in,
             int slider_pin
         ) {
-            pump_pin = pump;
-            sens_pin = sens;
-            sens_vin_pin = sens_vin_pin;
+            this->pump_pin = pump;
+            this->sens_pin = sens;
+            this->sens_vin_pin = sens_vin_pin;
 
-            interval_ms = interval;
-            last_time = interval;
+            this->interval_ms = interval;
+            this->last_time = interval;
 
-            pump_time_ms = pump_time;
-            power = pump_power;
-            slider_pin = slider_pin;
+            this->pump_time_ms = pump_time;
+            this->power = pump_power;
+            this->slider_pin = slider_pin;
+            this->slider_v_in = slider_v_in;
 
-            pinMode(pump_pin, OUTPUT);
-            pinMode(sens_pin, INPUT);
-            pinMode(sens_vin_pin, OUTPUT);
-            pinMode(slider_pin, INPUT);
+
+            pinMode(this->pump_pin, OUTPUT);
+            pinMode(this->sens_pin, INPUT);
+            pinMode(this->sens_vin_pin, OUTPUT);
+            pinMode(this->slider_v_in, OUTPUT);
+            pinMode(this->slider_pin, INPUT);
+
+            digitalWrite(this->sens_vin_pin, HIGH);
+            digitalWrite(this->slider_v_in, HIGH);
         }
 
     int readMoistureCapacitor() {
-
-        digitalWrite(sens_vin_pin, HIGH);
-        delay(100);
-
+        
         int out_voltage= analogRead(sens_pin);
-        digitalWrite(sens_vin_pin, LOW);
-
         return out_voltage;
     }
 
@@ -82,7 +85,8 @@ class PumpClient {
     int readSlider() {
         int slider_value;
         int max_voltage;
-        slider_value = analogRead(slider_pin);
+        slider_value = analogRead(slider_pin) / 4.0;
+
         max_voltage = slider_value / slider_scaling_const;
         return max_voltage;
     }
