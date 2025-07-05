@@ -1,5 +1,4 @@
 #include <Adafruit_AS7341.h>
-#include <PID_v1.h>
 
 struct SensResult {
     float F2;
@@ -14,7 +13,6 @@ struct LightResult {
 class LightClient {
 private:
     Adafruit_AS7341 sensor;
-    PID* pid;  // pointer now
 
     const int light_pin = 2;
     const int sens_v_pin = 22;
@@ -26,12 +24,12 @@ private:
     double target_ppfd = 0;
     double actual_ppfd = 0;
     double output_pwm = 0;
+    int pwm = 0;
 
     // PID tuning parameters
-    double Kp = 0.3, Ki = 0.1, Kd = 0.001;
 
 public:
-    LightClient() : pid(nullptr) {}
+    LightClient() {}
 
     void init() {
         Wire.begin();
@@ -57,14 +55,8 @@ public:
         sensor.setASTEP(999);
         sensor.setGain(AS7341_GAIN_256X);
 
-        // Construct PID here AFTER Kp, Ki, Kd have been set
-        pid = new PID(&actual_ppfd, &output_pwm, &target_ppfd, Kp, Ki, Kd, DIRECT);
-        pid->SetOutputLimits(0, 255);
-        pid->SetMode(AUTOMATIC);
-
         target_ppfd = 0;
         actual_ppfd = 0;
-        output_pwm = 0;
     }
 
     SensResult readSensors() {
@@ -87,36 +79,56 @@ public:
 
         result.F2 = counts[1];
         result.F8 = counts[9];
+
+        // TODO: add mapping function from slider value to max/min ppfd
+
         return result;
     }
 
     double getPPFD() {
         SensResult reading = readSensors();
 
-        double cumulative_reading = (reading.F2 + reading.F8) * 200; // approximate
+        double cumulative_reading = (reading.F2 + reading.F8) * 100; // approximate, 0.8 mult for 
         double PPFD = cumulative_reading * sensor_constant;
         return PPFD;
     }
 
     double getSlider() {
-
         int raw_value = analogRead(slider_pin) / 4.0;
+        if (raw_value < 5) {
+            return 0;
+        }
+        // TODO: add mapping function from slider value to max/min ppfd
         return raw_value;
     }
 
     LightResult pidLoop() {
-        target_ppfd = getSlider(); // scale 0-1023 to ~0-255 PWM range
+        target_ppfd = getSlider();
         actual_ppfd = getPPFD();
+        pwm = control_step(target_ppfd, actual_ppfd, pwm);
 
-        bool pid_result = pid->Compute();
-
-        if (!pid_result) {
-            Serial.println("PID compute returned false");
-        }
-
-        analogWrite(light_pin, (int)output_pwm);
-
+        analogWrite(light_pin, pwm);
 
         return {(int)target_ppfd, (int)actual_ppfd};
+    }
+
+    int control_step(int target_ppfd, int actual_ppfd, int current_pwm) {
+
+        int ppfd_delta = target_ppfd - actual_ppfd;
+
+        int target_pwm = target_ppfd; // add mapping back from ppfd to pwm
+        int next_pwm = (current_pwm + ppfd_delta / 5); //iterate to it in 5 steps
+        
+        Serial.print("pwm ");
+        Serial.println(next_pwm);
+
+
+        if (next_pwm > 255) { // clamping
+            next_pwm = 255;
+        } else if (next_pwm < 0) {
+            next_pwm = 0;
+        }
+
+        return next_pwm;
     }
 };

@@ -3,9 +3,17 @@
 class LcdClient {
     private:
         LiquidCrystal_I2C lcd;
-    public:
-        LcdClient() : lcd(0x27, 20, 4) {
+
+        void print_left_padded(int value, int width) {
+            String s = String(value);
+            while (s.length() < width) {
+                s += " ";  // pad on right to overwrite any old characters
+            }
+            lcd.print(s);
         }
+
+    public:
+        LcdClient() : lcd(0x27, 20, 4) {}
 
         void init() {
             int vin_display = 24;
@@ -19,10 +27,10 @@ class LcdClient {
         void light(int target, int actual) {
             lcd.setCursor(0, 0);
             lcd.print("L  M:");
-            lcd.print(actual);
+            print_left_padded(actual, 4);
             lcd.setCursor(10, 0);
             lcd.print("T:");
-            lcd.print(target);
+            print_left_padded(target, 4);
         }
 
         void soil(
@@ -35,29 +43,29 @@ class LcdClient {
         ) {
             lcd.setCursor(0, 1);
             lcd.print("B1 M:");
-            lcd.print(soil1M);
+            print_left_padded(soil1M, 4);
             lcd.setCursor(10, 1);
             lcd.print("T:");
-            lcd.print(soil1T);
+            print_left_padded(soil1T, 4);
 
             lcd.setCursor(0, 2);
             lcd.print("B2 M:");
-            lcd.print(soil2M);
+            print_left_padded(soil2M, 4);
             lcd.setCursor(10, 2);
             lcd.print("T:");
-            lcd.print(soil2T);
-    
+            print_left_padded(soil2T, 4);
+
             lcd.setCursor(0, 3);
             lcd.print("B3 M:");
-            lcd.print(soil3M);
+            print_left_padded(soil3M, 4);
             lcd.setCursor(10, 3);
             lcd.print("T:");
-            lcd.print(soil3T);
+            print_left_padded(soil3T, 4);
         }
 
         void last_water_time(unsigned long time_since_last) {
             lcd.setCursor(0, 3);
             lcd.print("Last water (h):");
-            lcd.print(time_since_last);
+            print_left_padded((int)time_since_last, 4);
         }
 };
