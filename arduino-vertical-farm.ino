@@ -25,14 +25,12 @@ int pump_2 = 5;
 int pump_3 = 4; // 1.2 L/Min
 
 
-unsigned long interval = 30*60*1000; // 30 mins
-int pump_time = 5000; // 5 seconds
+unsigned long interval = 30UL*60UL*1000UL; // 30 mins
+int pump_time = 1750; // 1.75 seconds
 int pump_power = 255;
 
 MoistureResult moisture_result;
 LightResult light_result;
-
-int soil_dry = 550; // quite dry
 
 // light
 

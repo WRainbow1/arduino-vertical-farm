@@ -18,7 +18,9 @@ class PumpClient {
 
         int pump_time_ms;
         int power;
-        double slider_scaling_const = 1;
+
+        int wet = 300 / 4.0; // input voltage: completely waterlogged
+        int dry = 650 / 4.0; // input voltage: bome dry
 
     public:
         PumpClient(
@@ -50,18 +52,36 @@ class PumpClient {
 
             digitalWrite(this->sens_vin_pin, HIGH);
             digitalWrite(this->slider_v_in, HIGH);
+            Serial.begin(9600);
         }
 
-    int readMoistureCapacitor() {
+    float readMoistureCapacitor() {
         
-        int out_voltage= analogRead(sens_pin);
-        return out_voltage;
+        float read = analogRead(sens_pin) / 4.0; // 255 scaled
+        float range = dry - wet;
+        float unflipped = (read - wet)*255.0/range; // scale so that range is over dry/wet = 255/0
+        float result = 255 - unflipped; // switch so scale is wet/dry = 255/0, more intuitive
+
+        // clamp
+        if (result > 255) {
+            return 255.0;
+        } else if (result < 0) {
+            return 0.0;
+        }
+
+        return result;
     }
 
-    bool activatePump(int out_cp, int max_voltage)   {
+    bool activatePump(float capacitor_val, float slider_val)   {
         // 255 / 255 power: // 1.2 L/Min
+
+        // Serial.print("time delta: ");
+        // Serial.println(millis() - last_time);
+        // Serial.print("interval: ");
+        // Serial.println(interval_ms);
         
-        if (((millis() - last_time) >= interval_ms || out_cp > max_voltage) && false) {
+        if ((millis() - last_time) >= interval_ms && capacitor_val < slider_val && slider_val > 10) {
+
             analogWrite(pump_pin, power);
             delay(pump_time_ms);
             digitalWrite(pump_pin, LOW);
@@ -79,15 +99,19 @@ class PumpClient {
         bool pump_ran = activatePump(out_voltage, max_voltage);
         unsigned long time_since_last = (millis() - last_time)/(1000UL*3600UL);
 
-        return {time_since_last, pump_ran, out_voltage, max_voltage};
+        return {time_since_last, pump_ran, out_voltage / 2.5, max_voltage / 2.5};
     }
 
-    int readSlider() {
-        int slider_value;
-        int max_voltage;
-        slider_value = analogRead(slider_pin) / 4.0;
+    float readSlider() {
+        float slider_value;
+        float max_voltage;
+        slider_value = analogRead(slider_pin) / 4.0; // 255 scaled
 
-        max_voltage = slider_value / slider_scaling_const;
+        if (slider_value < 25.0) {
+            slider_value = 0.0;
+        }
+
+        max_voltage = slider_value;
         return max_voltage;
     }
 };

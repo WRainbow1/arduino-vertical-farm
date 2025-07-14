@@ -19,14 +19,18 @@ private:
     const int slider_v_pin = 23;
     const int slider_pin = A3;
 
-    double sensor_constant = 1.0;
+    // measured from sens reading being 1.5 at ~ 500 umol/m^2/s
+    float sensor_constant = 337.0;
+    int max_ppfd = 500;
 
     double target_ppfd = 0;
     double actual_ppfd = 0;
     double output_pwm = 0;
-    int pwm = 0;
 
-    // PID tuning parameters
+    float pwm = 0;
+    float gain = 0.00001;
+    float integral_gain = 0.1;
+    float error_sum = 0;
 
 public:
     LightClient() {}
@@ -80,26 +84,27 @@ public:
         result.F2 = counts[1];
         result.F8 = counts[9];
 
-        // TODO: add mapping function from slider value to max/min ppfd
-
         return result;
     }
 
-    double getPPFD() {
+    float getPPFD() {
         SensResult reading = readSensors();
 
-        double cumulative_reading = (reading.F2 + reading.F8) * 100; // approximate, 0.8 mult for 
-        double PPFD = cumulative_reading * sensor_constant;
+        float cumulative_reading = (reading.F2 + reading.F8);
+        Serial.print("PPFD Raw Reading: ");
+        Serial.println(cumulative_reading);
+        float PPFD = cumulative_reading * sensor_constant;
         return PPFD;
     }
 
-    double getSlider() {
-        int raw_value = analogRead(slider_pin) / 4.0;
-        if (raw_value < 5) {
+    float getSlider() {
+        float raw_value = analogRead(slider_pin) / 4.0;
+        if (raw_value < 10) {
             return 0;
         }
-        // TODO: add mapping function from slider value to max/min ppfd
-        return raw_value;
+        float target_ppfd = raw_value*max_ppfd / 255.0;
+
+        return target_ppfd;
     }
 
     LightResult pidLoop() {
@@ -112,21 +117,23 @@ public:
         return {(int)target_ppfd, (int)actual_ppfd};
     }
 
-    int control_step(int target_ppfd, int actual_ppfd, int current_pwm) {
+    float control_step(float target_ppfd, float actual_ppfd, float current_pwm) {
 
-        int ppfd_delta = target_ppfd - actual_ppfd;
+        float ppfd_delta = target_ppfd - actual_ppfd;
+        float error_sum = error_sum + ppfd_delta;
 
-        int target_pwm = target_ppfd; // add mapping back from ppfd to pwm
-        int next_pwm = (current_pwm + ppfd_delta / 5); //iterate to it in 5 steps
-        
-        Serial.print("pwm ");
+        float target_pwm = target_ppfd*255.0 / max_ppfd;
+        float next_pwm = (current_pwm + abs(ppfd_delta)*ppfd_delta*gain + integral_gain*error_sum); 
+
+        Serial.print("next pwm: ");
         Serial.println(next_pwm);
-
 
         if (next_pwm > 255) { // clamping
             next_pwm = 255;
-        } else if (next_pwm < 0) {
+            error_sum = 0;
+        } else if (next_pwm < 10) {
             next_pwm = 0;
+            error_sum = 0;
         }
 
         return next_pwm;
